@@ -64,16 +64,14 @@ int main(void){
 
 // ****************************** INITIALIZE ******************************** //
 
-    unsigned long int temp;                                                     // Initialize temp variable for calc ADC_value
-    int ADC_value;                                                              // Initialize integer to hold average of adcBuff sampling
-    char value1[8];                                                             // Initialize string for ADC_value storage
-    char value2[8];                                                             // Initialize string for oc1Temp storage
-    char value3[8];                                                             // Initialize string for oc2Temp storage
-    unsigned int adcBuff[16], i =0;                                             // Initalize buffer for sampling
-    unsigned int * adcPtr;
-    unsigned int oc1Temp;                                                       // Initialize variable for duty cycle LCD dispay
-    unsigned int oc2Temp;                                                       // Initialize variable for duty cycle LCD display
-    int receivedChar;
+//    unsigned long int temp;                                                     // Initialize temp variable for calc ADC_value
+ //   int ADC_value;                                                              // Initialize integer to hold average of adcBuff sampling
+//    unsigned int adcBuff[16], i =0;                                             // Initalize buffer for sampling
+//    unsigned int * adcPtr;
+    int receivedChar;                                                           // Initialize User Char Variable
+    int mode = 0;                                                               // Initialize Mode Variable
+    int right = 0;                                                              // Initialize Right Reduction Variable
+    int left = 0;                                                               // Initialize Left Reduction Variable
 
     OC1CON = 0x000E;                                                            // Set OC1CON to PWM w/o protection
     OC2CON = 0x000E;                                                            // Set OC2CON to PWM w/o protection
@@ -100,229 +98,224 @@ int main(void){
     AD1CSSL = 0;                                                                // No inputs are scanned
     AD1CON1bits.ADON = 1;                                                       // Turn ADC on
 
+    PORTAbits.RA3 = 0;                                                          // Turn H-Bridge on
+    TRISAbits.TRISA3 = 0;                                                       // RB3 = pin 10 as output
+  
+//////////////////////////////UART Configuration////////////////////////////////
 
-    TRISAbits.TRISA3 = 0;                                                       //RB3 = pin 10 as output
-   // TRISBbits.TRISB5 = 1;                                                       //RB5 is input, SW5 on PIC
-
-   // CNEN2bits.CN27IE = 1;                                                        //enable change notification for RB5
-
-  //  IFS1bits.CNIF = 0;                                                          //drop the CN flag
-  //  IEC1bits.CNIE = 1;                                                          //allow change notifications
-
-///////////////////////////////////////////////////////////////////////////////
-
-	//RPINR18 is a regsiter for selectable input mapping (see Table 10-2) for
-	// for UART1. U1RX is 8 bit value used to specifiy connection to which
-	// RP pin. RP9 is used for this configuration. Physical Pin 18.
 	RPINR18bits.U1RXR = 9;
-
-	// RPOR4 is a register for selctable ouput mapping (see Regsiter 1019) for
-	// pins RP9 and RP8. The register for RP8 is assigned to 3 to connect
-	// the U1TX output for UART1 (see table 10-3). Physical Pin 17.
 	RPOR4bits.RP8R = 3;
-
-// Set UART1's baud rate generator register (U1BRG) to the value calculated above.
 	U1BRG  = BRGVAL;
-
-	// Set UART1's mode register to 8-bit data, no parity, 1 stop bit, enabled.
-	//     UARTEN        = 1     (enable UART)
-	//     PDSEL1:PDSEL0 = 00    (8-bit data, no parity)
-	//     STSEL         = 0     (1 stop bit)
 	U1MODE = 0x8000;
-
-	// Set UART2's status and control register
-	//     UTXISEL1:UTXISEL0 = 00    (U1TXIF set when character
-	//                                written to trasmit buffer)
-	//     UTXEN             = 1     (trasnmit enabled)
-	//     URXISEL1:URXISEL0 = 01    (U1RXIF set when any character
-	//                                is received in receive buffer)
-	//     RIDLE             = 0     (Reciver is active)
-	U1STA  = 0x0440; 		// Reset status register and enable TX & RX
-
-	// Clear the UART RX interrupt flag. Althouhg we are not using a ISR for
-	// the UART receive, the UART RX interrupt flag can be used to deermine if
-	// we have recived a character from he UART.
-	IFS0bits.U1RXIF = 0;
-        
-
-	// printf by default is mapped to serial communication using UART1.
-	// NOTES:
-	//        1. You must specify a heap size for printf. This is required
-	//           becuase printf needs to allocate its own memory, which is
-	//           allocated on the heap. This can be set in MPLAB by:
-	//           a.) Selecting Build Options...->Project from the Project menu.
-	//           b.) Selecting the XC16 LINK (MPLABLINK30) Tab.
-	//           c.) Entering the size of heap, e.g. 512, under Heap Size
-	//        2. printf function is advanced and using printf may require
-	//           significant code size (6KB-10KB).
-	printf("\n\n\rkonnichiwa!\n\r");
-
-	// Print a message requesting the user to select a LED to toggle.
-	printf("Select State to Toggle (4): ");
+	U1STA  = 0x0440;                                                        // Reset status register and enable TX & RX
+	IFS0bits.U1RXIF = 0;                                                    // Clear UART RX interrupt flag
+	printf("\n\n\nROBOT ONLINE\n\n\n");
+	printf("Enter Mode. (A)utonomous or (C)ontrolled: ");
 
 
 // **************************** INITIALIZE END ****************************** //
 
-
+        OC1RS = 0;
+        OC2RS = 0;
 
 
     while(1){
+        if(IFS0bits.U1RXIF == 1) {                                              // If character received
+            receivedChar = U1RXREG;                                             // Assign entered char to received Char
 
-        switch (state){
-
-
-            case 0:                                                             // RUN STATE
-
-// ******************************* SAMPLING ********************************* //
-                while(!IFS0bits.AD1IF);                                         // While conversion not done
-                adcPtr = (unsigned int *)(&ADC1BUF0);                           // yes
-                IFS0bits.AD1IF = 0;                                             // Clear AD1IF
-                temp = 0;                                                       // Clear temp
-                for (i=0;i<16;i++) {                                            // Iterrate to sum up adcBuff
-                    adcBuff[i] = *adcPtr++;
-                    temp = temp + adcBuff[i];                                   // Sum up values stored in adcBuffer
+            if (mode == 0){                                                     // Idle Mode
+                if( receivedChar == 'A' || receivedChar == 'a') {               // Autonomous Mode Selected
+                    printf("%c\n\r", receivedChar);                             // Print receivedChar
+                    printf("Autonomous Mode Selected!\n");                      // Print a confirmation message.
+                    LCDMoveCursor(0,0);                                         // Move cursor to start of line 1
+                    LCDPrintString("Auto");                                     // Print Auto to the LCD
+                    printf("Press (T)oggle to start/stop or (Q)uit: ");         // Print Usage Statement
+                    mode = 1;
                 }
-                     
-                ADC_value = temp/16;                                            // Average the 16 ADC value = binary->decimal conversion
+
+                else if ( receivedChar == 'C' || receivedChar == 'c'){          // Contorlled Mode Selected
+                    printf("%c\n\r", receivedChar);                             // Print receivedChar
+                    printf("Controlled Mode Selected!\n");                      // Print a confirmation message.
+                    LCDMoveCursor(0,0);                                         // Move cursor to start of line 1
+                    LCDPrintString("Control");                                  // Print value2 to the lcd
+                    printf("Use (1) to Start,(2) to reverse, (3) to stop, or (Q)uit.\n");
+                    printf("Use (4) to veer Left. Use (6) to veer Right.\n");
+                    mode = 2;
+                }
+
+                else if (receivedChar != 'A' || receivedChar != 'C'
+                        || receivedChar != 'Q' || receivedChar != 'T'
+                        || receivedChar != 'a' || receivedChar != 'c'
+                        || receivedChar != 'q' || receivedChar != 't') {        // Invalid Mode Case
+                        printf("\n\n\nInvalid Mode Selected!\n\n\n");           // Display error message.
+                       printf("Enter Mode. (A)utonomous or (C)ontrolled: ");    // Reprint Usage Statement
+		}
+            }
+
+            if(mode == 1){                                                      // Autonomous Mode
+                if(receivedChar == 'T' || receivedChar == 't'){                 // Toggle Case
+                    state = 4;                                                  // Toggle Forward/Idle/Reverse
+                }
+                if(receivedChar == 'Q' || receivedChar == 'q'){                 // Quit Case
+                    OC1RS = 0;                                                  // Turn off Left Motor
+                    OC2RS = 0;                                                  // Turn off Right Motor
+                    mode = 0;                                                   // Set Mode to Idle Mode
+                    LCDClear();                                                 // Clear LCD
+                    printf("\n\n\nEnding (A)utonomous!\n\n\n");                 // Print Quit Confirmation
+                    printf("Enter Mode. (A)utonomous or (C)ontrolled: ");       // Reprint Usage Statement
+                }
+                if(receivedChar == 'A' || receivedChar == 'a'){
+                }
+            }
+
+            if(mode == 2){                                                      // Contolled Mode
+                if(receivedChar == '1'){                                        // Forward Case
+                    RPOR1bits.RP2R = 18;                                        // Pin6 used for OC1 pulses
+                    RPOR1bits.RP3R = 20;                                        // Pin7 used for OC1 ground
+                    RPOR5bits.RP10R = 19;                                       // Pin21 used for OC2 pulse
+                    RPOR5bits.RP11R = 20;                                       // Pin22 used for OC2 ground
+                    right = 1;                                                  // Initalize right reduction variable
+                    left = 1;                                                   // Initalize left reduction variable
+                    OC1RS = 1021;                                               // Set right Duty Cycle to 100%
+                    OC2RS = 1021;                                               // Set left Duty Cycle to 100%
+                }
+
+                if(receivedChar == '3'){                                        // Idle Case
+                    OC1RS = 0;                                                  // Stop right motor
+                    OC2RS = 0;                                                  // Stop left motor
+                }
+
+                if(receivedChar == '6'){                                        // Right Turn
+                    right = right + 340;                                        // Incriment right motor reduction
+                    left = left - 340;                                          // Decriment left motor reduction
+                    if (right > 1020){                                          // If right incremented to high
+                        right = 1020;                                           // Set to max
+                    }
+                    if (left < 0){                                              // If left Decrimented to low
+                        left = 1;                                               // Set to min
+                    }
+
+                    OC1RS = 1020 - right;                                       // Set right motor duty cycle
+                    OC2RS = 1020 - left;                                        // Set left motor duty cycle
+                }
+
+                if(receivedChar == '4'){                                        // Left Turn
+                    right = right - 340;                                        // Decriment right motor reduction
+                    left = left + 340;                                          // Incriment left motor reduction
+                    if (right < 0){                                             // If right Decrimented to low
+                        right = 1;                                              // Set to min
+                    }
+                    if (left > 1020){                                           // If left Incrimented to high
+                        left = 1020;                                            // Set to max
+                    }
+
+                    OC1RS = 1020 - right;                                       // Set right motor duty cycle
+                    OC2RS = 1020 - left;                                        // Set left motor duty cycle
+                }
+
+                if(receivedChar == '2'){                                        // Reverse Case
+                    RPOR1bits.RP2R = 20;                                        // Pin6 used for OC1 pulse
+                    RPOR1bits.RP3R = 18;                                        // Pin7 used for OC1 ground
+                    RPOR5bits.RP10R = 20;                                       // Pin21 used for OC2 pulse
+                    RPOR5bits.RP11R = 19;                                       // Pin22 used for OC2 ground
+                    right = 1;                                                  // Initialize right reduction value
+                    left = 1;                                                   // Initialize left reduction value
+                    OC1RS = 1021;                                               // Set right Duty Cycle to 100%
+                    OC2RS = 1021;                                               // Set left Duty Cycle to 100%
+                }
+
+                if(receivedChar == 'Q' || receivedChar == 'q'){                 // Quit Case
+                    right = 1;                                                  // Reset right reduction
+                    left = 1;                                                   // Reset left reduction
+                    OC1RS = 0;                                                  // Stop right motor
+                    OC2RS = 0;                                                  // Stop left motor
+                    mode = 0;                                                   // Set Mode to Idle
+                    LCDClear();                                                 // Clear LCD
+                    printf("\n\n\nEnding (C)ontrolled!\n\n\n");                 // Print Quit Confirmation
+                    printf("Enter Mode. (A)utonomous or (C)ontrolled: \n");     // Reprint Usage Statement
+                }
+
+            }
+	IFS0bits.U1RXIF = 0;                                            	// Clear the UART RX interrupt flag
+
+        }
+
+        if (mode == 1){                                                         // Autonomous Mode Operation
+ 
+// ******************************* SAMPLING ********************************* //
+//                while(!IFS0bits.AD1IF);                                         // While conversion not done
+//                adcPtr = (unsigned int *)(&ADC1BUF0);                           // yes
+//                IFS0bits.AD1IF = 0;                                             // Clear AD1IF
+//                temp = 0;                                                       // Clear temp
+//                for (i=0;i<16;i++) {                                            // Iterrate to sum up adcBuff
+//                    adcBuff[i] = *adcPtr++;
+//                    temp = temp + adcBuff[i];                                   // Sum up values stored in adcBuffer
+//                }
+//
+//                ADC_value = temp/16;                                            // Average the 16 ADC value = binary->decimal conversion
 // ***************************** SAMPLING END ******************************* //
 
 
 
 // ***************************** CALCULATIONS ******************************* //
-                OC1RS =  1023 - ADC_value;                                      // Load OC1RS buffer with the opposite of OC2RS
-                OC2RS = ADC_value;                                              // Load OC2RS buffer with the value of ADC_value
-
-                if (ADC_value >= 512 ){                                         // If pot more than 1/2
-                oc1Temp = (OC1RS * 100) / 512;                                  // Calculate duty cycle of OC1RS and store to oc1Temp
-                oc2Temp = 100;                                                  // Store duty cycle of 100% to oc2Temp
-                }
-
-                if (ADC_value <= 511){                                          // If pot lesss than 1/2
-                oc1Temp = 100;                                                  // Store dutycycle of 100% to oc1Temp
-                oc2Temp = (OC2RS * 100) / 512;                                  // Calculate duty cycle of OC2RS and store to oc2Temp
-                }
+//                OC1RS =  1023 - ADC_value;                                      // Load OC1RS buffer with the opposite of OC2RS
+//                OC2RS = ADC_value;                                              // Load OC2RS buffer with the value of ADC_value
+//
+//                if (ADC_value >= 512 ){                                         // If pot more than 1/2
+//                oc1Temp = (OC1RS * 100) / 512;                                  // Calculate duty cycle of OC1RS and store to oc1Temp
+//                oc2Temp = 100;                                                  // Store duty cycle of 100% to oc2Temp
+//                }
+//
+//                if (ADC_value <= 511){                                          // If pot lesss than 1/2
+//                oc1Temp = 100;                                                  // Store dutycycle of 100% to oc1Temp
+//                oc2Temp = (OC2RS * 100) / 512;                                  // Calculate duty cycle of OC2RS and store to oc2Temp
+//                }
 // *************************** CALCULATIONS END ***************************** //
 
- 
 
-// ****************************** UPDATE LCD ******************************** //
-                sprintf(value1, "%6d", ADC_value);                              // Copy ADC_value to value1 with 6 digits to value1
-                LCDMoveCursor(0,0);                                             // Move cursor to start of line 1
-                LCDPrintString(value1);                                         // Print value2 to the lcd
+/////////////////////////////////NEW CODE///////////////////////////////////////
+            // REMEMBER 1 is black tape
+            // REMEMBER 0 is No tape
 
-                sprintf(value2, "%3d", oc1Temp);                                // Copy oc1Temp to value2 with 3 digits to value2
-                LCDMoveCursor(1,0);                                             // Move cursor to start of line 2
-                LCDPrintString(value2);                                         // Print value2 to the lcd
+            // Use ADC for barcode?????
+            // Consider Using Change notification for Off center
 
-                sprintf(value3, "%3d", oc2Temp);                                // Copy oc2Temp to value3 with 3 digits to value3
-                LCDMoveCursor(1,5);                                             // Move cursor to middle of line 2
-                LCDPrintString(value3);                                         // Print value3 to the lcd
-// **************************** UPDATE LCD END ****************************** //
-
-            break;                                                              // END RUN STATE
-
-
-
-            case 1:                                                             // FORWARD STATE
-
-                PORTAbits.RA3 = 0;                                              // Turn H-Bridge on
-                RPOR1bits.RP2R = 18;                                            // Pin6 used for OC1 pulses
-                RPOR1bits.RP3R = 20;                                            // Pin7 used for OC1 ground
-                RPOR5bits.RP10R = 19;                                           // Pin21 used for OC2 pulse
-                RPOR5bits.RP11R = 20;                                           // Pin22 used for OC2 ground
-
-                nextState = 3;                                                  // Next state to go to is Idle
-                previousState = 1;                                              // Previous state used is Forward
-                state = 0;                                                      // Go to Run State
-
-           break;                                                               // END FORWARD STATE
-
-
-
-            case 2:                                                             // REVERSE STATE
-
-                PORTAbits.RA3 = 0;                                              // Turn H-Bridge on
-                RPOR1bits.RP2R = 20;                                            // Pin6 used for OC1 pulse
-                RPOR1bits.RP3R = 18;                                            // Pin7 used for OC1 ground
-                RPOR5bits.RP10R = 20;                                           // Pin21 used for OC2 pulse
-                RPOR5bits.RP11R = 19;                                           // Pin22 used for OC2 ground
-
-                nextState = 3;                                                  // Next state to go to is Idle
-                previousState = 2;                                              // Previous state used is Reverse
-                state = 0;                                                      // Go to Run State
-
-            break;                                                              // END REVERSE STATE
-
-
-
-            case 3:                                                             // IDLE STATE
-
-                OC1RS = 0;                                                      // Set OC1 duty cycle to 0%
-                OC2RS = 0;                                                      // Set OC2 duty cycle to 0%
-
-                if (previousState == 1){                                        // If previous state was Forward
-                    nextState = 2;                                              // Next state will be Reverse
-                }
-
-                if (previousState == 2){                                        // If previous state was Reverse
-                    nextState =1;                                               // Next state will be Forward
-                }
-
-            break;                                                              // END IDLE STATE
-
-
-            
-            case 4:                                                             // DEBOUNCE STATE
-
-                if(PORTBbits.RB5 == 1){                                         // If button was released
-                    state = nextState;                                          // Go to next state that was set in Idle (state 3)
-                }
-
-            break;                                                              // END DEBOUNCE STATE
-
-        }
-
-// Use the UART RX interrupt flag to wait until we recieve a character.
-		if(IFS0bits.U1RXIF == 1) {
-
-			// U1RXREG stores the last character received by the UART. Read this
-			// value into a local variable before processing.
-			receivedChar = U1RXREG;
-
-			// Echo the entered character so the user knows what they typed.
-			printf("%c\n\r", receivedChar);
-
-			// Check to see if the character value is between '4' and '7'. Be sure sure
-			// use single quotation mark as the character '4' is not the same as the
-			// number 4.
-			if( receivedChar == '4' ) {
-				// Assign ledToToggle to the number corresponding to the number
-				// entered. We can do this by subtracting the value for
-				// the character '0'.
-				//read = receivedChar;
-
-				// Print a confirmation message.
-				printf("Toggling State%d\n\r", 4);
-                                state = 4;
-			}
-			else {
-				// Display error message.
-				printf("Invalid LED Selection!\n\r");
-			}
-
-			// Clear the UART RX interrupt flag to we can detect the reception
-			// of another character.
-			IFS0bits.U1RXIF = 0;
-
-			// Re-print the message requesting the user to select a LED to toggle.
-			printf("Select State to Toggle (4): ");
-		}
-
-
+//            if ( not found){
+//                OC1RS = 1023;
+//                OC2RS = 1023;
+//            }
+//
+//            if ( line found) {
+//
+//                if ( middle sensor == 1 && left sensor == 0 && right sensor == 0){//No Correction Req
+//                check for barcode
+//                }
+//
+//                if ( middle sensor == 0){                                       //Correction Req
+//                    if (left sensor == 1 ){                                     //To Far Right
+//                        reduce OC2RS                                            //slow left motor
+//                    }
+//                    if (right sensor == 1){                                     //To Far Left
+//                        reduce OC1RS                                            //slow right motor
+//                    }
+//                }
+//
+//                if ( middle sensor == 1 && left sensor == 0 && right sensor ==1){//Loop case right turn
+//                    turn 90 degrees right
+//                }
+//
+//                if ( middle sensor == 1 && left sesnor == 1 && right sensor == 0){//Loop case Left turn
+//                    turn 90 degrees left
+//                }
+//
+//                if ( middle sensor == 1 && left sesnor == 1 && right sensor == 1){//End of Track case
+//                    turn 180 degrees
+//                }
+//            }
+/////////////////////////////////END NEW CODE///////////////////////////////////
+        }   
     }
-    
-    return 0;
-
+        return;
 }
 
 void _ISR_ADC1Interrupt(void) {                                                 // ISR for Analog to Digital conversion
@@ -331,15 +324,3 @@ void _ISR_ADC1Interrupt(void) {                                                 
     IFS0bits.AD1IF = 0;                                                         // Put down ISR flag
 
 }
-
-void __attribute__((interrupt)) _T3Interrupt(void){                             // Timer 3 interrupt.  Dont think we use this
-
-    IFS0bits.T3IF = 0;
-}
-
-//void __attribute__((interrupt)) _CNInterrupt(void){                             // Chance Notification for Button press (SW5)
-//
-//    IFS1bits.CNIF = 0;                                                          // Put down Change Notification Interrupt Flag
-//    state = 4;                                                                  // Go to Debounce state
-//
-//}
