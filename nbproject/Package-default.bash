@@ -10,9 +10,9 @@ CND_CONF=default
 CND_DISTDIR=dist
 TMPDIR=build/${CND_CONF}/${IMAGE_TYPE}/tmp-packaging
 TMPDIRNAME=tmp-packaging
-OUTPUT_PATH=dist/${CND_CONF}/${IMAGE_TYPE}/LabFinalCode.${IMAGE_TYPE}.${OUTPUT_SUFFIX}
-OUTPUT_BASENAME=LabFinalCode.${IMAGE_TYPE}.${OUTPUT_SUFFIX}
-PACKAGE_TOP_DIR=labfinalcode/
+OUTPUT_PATH=dist/${CND_CONF}/${IMAGE_TYPE}/final_project.${IMAGE_TYPE}.${OUTPUT_SUFFIX}
+OUTPUT_BASENAME=final_project.${IMAGE_TYPE}.${OUTPUT_SUFFIX}
+PACKAGE_TOP_DIR=finalproject/
 
 # Functions
 function checkReturnCode
@@ -57,15 +57,15 @@ mkdir -p ${TMPDIR}
 
 # Copy files and create directories and links
 cd "${TOP}"
-makeDirectory ${TMPDIR}/labfinalcode/bin
+makeDirectory ${TMPDIR}/finalproject/bin
 copyFileToTmpDir "${OUTPUT_PATH}" "${TMPDIR}/${PACKAGE_TOP_DIR}bin/${OUTPUT_BASENAME}" 0755
 
 
 # Generate tar file
 cd "${TOP}"
-rm -f ${CND_DISTDIR}/${CND_CONF}/package/labfinalcode.tar
+rm -f ${CND_DISTDIR}/${CND_CONF}/package/finalproject.tar
 cd ${TMPDIR}
-tar -vcf ../../../../${CND_DISTDIR}/${CND_CONF}/package/labfinalcode.tar *
+tar -vcf ../../../../${CND_DISTDIR}/${CND_CONF}/package/finalproject.tar *
 checkReturnCode
 
 # Cleanup
