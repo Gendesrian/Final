@@ -6,7 +6,7 @@
 //************************** H-BRIDGE PIN MAPPING ****************************//
 //pin10 is enable to pin1h and pin9h
 //pin7 goes to pin2h
-//pin6 goes to pin7h
+//pin14 goes to pin7h
 //right wheel red to pin3h
 //right wheel black to pin6h
 //left wheel red to pin14h
@@ -17,12 +17,33 @@
 //ground pin4h,5h,12h,13h
 //************************ END H-BRIDGE PIN MAPPING **************************//
 
-
+// Pins used
+//P2 used for AN0 Potentiameter Input
+//P3 used for AN1 Left PhotoTransistor
+//P4 used for AN2 Middle PhotoTransistor
+//P5 used for AN3 Right PhotoTransistor
+//P6 used for AN4 Barcode PhotoTransistor
+//P7 used for RP3 OC3R/RS ground Right Motor // swapping pin for Reverse
+//P10 used for RA3 H-bridge Enable
+//P14 used for RP5 OC1R/RS pulses Right Motor // swapping pin for Reverse
+//P15 used for LCD Enable
+//P16 used for LCD RS
+//P17 used for RP8 UART1 TX Output
+//P18 used for RP9 UART1 RX Input
+//P21 used for RP10 OC2R/RS pulses Left Motor // swapping pin for Reverse
+//P22 used for RP11 OC3R/RS ground Left Motor // swapping pin for Reverse
+//P23 used for LCD Data/Control
+//P24 used for LCD Data/Control
+//P25 used for LCD Data/Control
+//P26 used for LCD Data/Control
 
 #include "p24fj64ga002.h"
 #include <stdio.h>
 #include "lcd.h"
 
+#define rightBaseSpeed 1023
+#define leftBaseSpeed 1023
+#define base 1023
 
 
 // ************************************************************************** //
@@ -65,13 +86,22 @@ int main(void){
 // ****************************** INITIALIZE ******************************** //
 
 //    unsigned long int temp;                                                     // Initialize temp variable for calc ADC_value
- //   int ADC_value;                                                              // Initialize integer to hold average of adcBuff sampling
-//    unsigned int adcBuff[16], i =0;                                             // Initalize buffer for sampling
-//    unsigned int * adcPtr;
+//   int ADC_value;                                                              // Initialize integer to hold average of adcBuff sampling
+    unsigned int adcBuff[16], i =0;                                             // Initalize buffer for sampling
+    unsigned int * adcPtr;
     int receivedChar;                                                           // Initialize User Char Variable
     int mode = 0;                                                               // Initialize Mode Variable
     int right = 0;                                                              // Initialize Right Reduction Variable
     int left = 0;                                                               // Initialize Left Reduction Variable
+    int inc = -1;
+    int sum = 0;
+    int motorSpeed = 0;
+    int rightMotorSpeed = 0;
+    int leftMotorSpeed = 0;
+    int error = 0;
+    int base = 0;
+    int lastError;
+
 
     OC1CON = 0x000E;                                                            // Set OC1CON to PWM w/o protection
     OC2CON = 0x000E;                                                            // Set OC2CON to PWM w/o protection
@@ -90,21 +120,26 @@ int main(void){
     IEC0bits.T3IE = 0;                                                          // Do not enable ISR
 
     LCDInitialize( );                                                           // Initialize LCD
-    AD1PCFG &= 0xFFFE;                                                          // AN0 input pin is analog(0), rest all to digital pins(1)
-    AD1CON2 = 0x003C;                                                           // Sets SMPI(sample sequences per interrupt) to 1111, 16th sample/convert sequence
+
+    //////////RECONFIGURE THIS///////////////////
+    AD1PCFG &= 0xFFE0;                                                          // AN0-AN4 input pin is analog(0), rest all to digital pins(1)
+    //AD1CON2 = 0x003C;                                                           // Sets SMPI(sample sequences per interrupt) to 1111, 16th sample/convert sequence
+
+    AD1CON2 = 0x0015;                                                           //set for 5 buffers
     AD1CON3 = 0x0D01;                                                           // Set SAMC<12:8>(Auto-Sampe Time Bits(TAD)) =  13, ADCS<7:0> = 1 -> 100ns conversion time
     AD1CON1 = 0x20E4;                                                           // ADSIDL<13> = 1, SSRC<7-5> = 111(conversion trigger source select - auto convert)
-    AD1CHS = 0;                                                                 // Configure input channels, connect AN0 as positive input
+   // AD1CHS = 0;                                                                 // Configure input channels, connect AN0 as positive input
     AD1CSSL = 0;                                                                // No inputs are scanned
     AD1CON1bits.ADON = 1;                                                       // Turn ADC on
 
+    TRISAbits.TRISA3 = 0;                                                       // RA3 = pin 10 as output
     PORTAbits.RA3 = 0;                                                          // Turn H-Bridge on
-    TRISAbits.TRISA3 = 0;                                                       // RB3 = pin 10 as output
+    
   
 //////////////////////////////UART Configuration////////////////////////////////
 
-	RPINR18bits.U1RXR = 9;
-	RPOR4bits.RP8R = 3;
+	RPINR18bits.U1RXR = 9;                                                  // RP9 used for UART1 RX Input
+	RPOR4bits.RP8R = 3;                                                     // RP8 used for UART1 TX Output
 	U1BRG  = BRGVAL;
 	U1MODE = 0x8000;
 	U1STA  = 0x0440;                                                        // Reset status register and enable TX & RX
@@ -170,7 +205,7 @@ int main(void){
 
             if(mode == 2){                                                      // Contolled Mode
                 if(receivedChar == '1'){                                        // Forward Case
-                    RPOR1bits.RP2R = 18;                                        // Pin6 used for OC1 pulses
+                    RPOR2bits.RP5R = 18;                                        // Pin14 used for OC1 pulses
                     RPOR1bits.RP3R = 20;                                        // Pin7 used for OC1 ground
                     RPOR5bits.RP10R = 19;                                       // Pin21 used for OC2 pulse
                     RPOR5bits.RP11R = 20;                                       // Pin22 used for OC2 ground
@@ -214,7 +249,7 @@ int main(void){
                 }
 
                 if(receivedChar == '2'){                                        // Reverse Case
-                    RPOR1bits.RP2R = 20;                                        // Pin6 used for OC1 pulse
+                    RPOR2bits.RP5R = 20;                                        // Pin14 used for OC1 pulse
                     RPOR1bits.RP3R = 18;                                        // Pin7 used for OC1 ground
                     RPOR5bits.RP10R = 20;                                       // Pin21 used for OC2 pulse
                     RPOR5bits.RP11R = 19;                                       // Pin22 used for OC2 ground
@@ -243,21 +278,85 @@ int main(void){
         if (mode == 1){                                                         // Autonomous Mode Operation
  
 // ******************************* SAMPLING ********************************* //
-//                while(!IFS0bits.AD1IF);                                         // While conversion not done
-//                adcPtr = (unsigned int *)(&ADC1BUF0);                           // yes
-//                IFS0bits.AD1IF = 0;                                             // Clear AD1IF
-//                temp = 0;                                                       // Clear temp
-//                for (i=0;i<16;i++) {                                            // Iterrate to sum up adcBuff
-//                    adcBuff[i] = *adcPtr++;
-//                    temp = temp + adcBuff[i];                                   // Sum up values stored in adcBuffer
-//                }
-//
-//                ADC_value = temp/16;                                            // Average the 16 ADC value = binary->decimal conversion
+
+            while(!IFS0bits.AD1IF);
+             adcPtr = (unsigned int *)(&ADC1BUF0);
+             IFS0bits.AD1IF = 0;
+             sum = 0;
+             for (i = 0; i < 4; i++ ) {
+                 AD1CHS = inc + 1;
+                 adcBuff[i] = *adcPtr++;
+             }
+
+             sum = adcBuff[2] + adcBuff[3] - adcBuff[1];
+             inc = -1;
+             // implement adcBuff[4]  for barcode
+
+
+
 // ***************************** SAMPLING END ******************************* //
 
 
 
 // ***************************** CALCULATIONS ******************************* //
+             /* // 0 is tape
+                // 1 is not tape
+             if(sum == 0) {
+                 //go straight
+                 //OC1RS = base;
+                 //OC2RS = base;
+             }
+
+             if (far left is zero ) {
+                turn left;
+             }
+
+             if (far right is zero) {
+                turn right;
+              }
+
+              if (far left and far right = 1) {
+                PID MODE
+              }
+
+              if (far left and right = 0) {
+                counter ++;
+
+
+                  //checking counter
+                  if (counter < 3) {
+                    turn right 90*;
+                  }
+
+                  if (counter == 3) {
+                    turn 180;
+                  }
+
+                  if (counter > 3) {
+                    turn left 90;
+                  }
+              }
+             */
+
+
+             //PID MODE
+             error = base - sum;
+             motorSpeed = error + (error-lastError);
+             lastError = error;
+
+             OC1RS = rightBaseSpeed + motorSpeed;                               //right motor speed
+             OC2RS = leftBaseSpeed + motorSpeed;                                // left motor speed
+
+              printf("\nadcBuff[1] = %d\n", adcBuff[1]);
+              printf("\nadcBuff[2] = %d\n", adcBuff[2]);
+              printf("\nadcBuff[3] = %d\n", adcBuff[3]);
+
+              printf("\nError = %d\n", error);
+              printf("\nlastError = %d\n", lastError);
+              printf("\nSum = %d\n", sum);
+              printf("\nMotorSpeed = %d\n", motorSpeed);
+
+
 //                OC1RS =  1023 - ADC_value;                                      // Load OC1RS buffer with the opposite of OC2RS
 //                OC2RS = ADC_value;                                              // Load OC2RS buffer with the value of ADC_value
 //
