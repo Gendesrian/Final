@@ -6,7 +6,7 @@
 //************************** H-BRIDGE PIN MAPPING ****************************//
 //pin10 is enable to pin1h and pin9h
 //pin7 goes to pin2h
-//pin6 goes to pin7h
+//pin14 goes to pin7h
 //right wheel red to pin3h
 //right wheel black to pin6h
 //left wheel red to pin14h
@@ -17,7 +17,25 @@
 //ground pin4h,5h,12h,13h
 //************************ END H-BRIDGE PIN MAPPING **************************//
 
-
+// Pins used
+//P2 used for AN0 Potentiameter Input
+//P3 used for AN1 Left PhotoTransistor
+//P4 used for AN2 Middle PhotoTransistor
+//P5 used for AN3 Right PhotoTransistor
+//P6 used for AN4 Barcode PhotoTransistor
+//P7 used for RP3 OC3R/RS ground Right Motor // swapping pin for Reverse
+//P10 used for RA3 H-bridge Enable
+//P14 used for RP5 OC1R/RS pulses Right Motor // swapping pin for Reverse
+//P15 used for LCD Enable
+//P16 used for LCD RS
+//P17 used for RP8 UART1 TX Output
+//P18 used for RP9 UART1 RX Input
+//P21 used for RP10 OC2R/RS pulses Left Motor // swapping pin for Reverse
+//P22 used for RP11 OC3R/RS ground Left Motor // swapping pin for Reverse
+//P23 used for LCD Data/Control
+//P24 used for LCD Data/Control
+//P25 used for LCD Data/Control
+//P26 used for LCD Data/Control
 
 #include "p24fj64ga002.h"
 #include <stdio.h>
@@ -65,7 +83,7 @@ int main(void){
 // ****************************** INITIALIZE ******************************** //
 
 //    unsigned long int temp;                                                     // Initialize temp variable for calc ADC_value
- //   int ADC_value;                                                              // Initialize integer to hold average of adcBuff sampling
+//   int ADC_value;                                                              // Initialize integer to hold average of adcBuff sampling
 //    unsigned int adcBuff[16], i =0;                                             // Initalize buffer for sampling
 //    unsigned int * adcPtr;
     int receivedChar;                                                           // Initialize User Char Variable
@@ -90,6 +108,8 @@ int main(void){
     IEC0bits.T3IE = 0;                                                          // Do not enable ISR
 
     LCDInitialize( );                                                           // Initialize LCD
+
+    //////////RECONFIGURE THIS///////////////////
     AD1PCFG &= 0xFFFE;                                                          // AN0 input pin is analog(0), rest all to digital pins(1)
     AD1CON2 = 0x003C;                                                           // Sets SMPI(sample sequences per interrupt) to 1111, 16th sample/convert sequence
     AD1CON3 = 0x0D01;                                                           // Set SAMC<12:8>(Auto-Sampe Time Bits(TAD)) =  13, ADCS<7:0> = 1 -> 100ns conversion time
@@ -98,13 +118,14 @@ int main(void){
     AD1CSSL = 0;                                                                // No inputs are scanned
     AD1CON1bits.ADON = 1;                                                       // Turn ADC on
 
+    TRISAbits.TRISA3 = 0;                                                       // RA3 = pin 10 as output
     PORTAbits.RA3 = 0;                                                          // Turn H-Bridge on
-    TRISAbits.TRISA3 = 0;                                                       // RB3 = pin 10 as output
+    
   
 //////////////////////////////UART Configuration////////////////////////////////
 
-	RPINR18bits.U1RXR = 9;
-	RPOR4bits.RP8R = 3;
+	RPINR18bits.U1RXR = 9;                                                  // RP9 used for UART1 RX Input
+	RPOR4bits.RP8R = 3;                                                     // RP8 used for UART1 TX Output
 	U1BRG  = BRGVAL;
 	U1MODE = 0x8000;
 	U1STA  = 0x0440;                                                        // Reset status register and enable TX & RX
@@ -170,7 +191,7 @@ int main(void){
 
             if(mode == 2){                                                      // Contolled Mode
                 if(receivedChar == '1'){                                        // Forward Case
-                    RPOR1bits.RP2R = 18;                                        // Pin6 used for OC1 pulses
+                    RPOR2bits.RP5R = 18;                                        // Pin14 used for OC1 pulses
                     RPOR1bits.RP3R = 20;                                        // Pin7 used for OC1 ground
                     RPOR5bits.RP10R = 19;                                       // Pin21 used for OC2 pulse
                     RPOR5bits.RP11R = 20;                                       // Pin22 used for OC2 ground
@@ -214,7 +235,7 @@ int main(void){
                 }
 
                 if(receivedChar == '2'){                                        // Reverse Case
-                    RPOR1bits.RP2R = 20;                                        // Pin6 used for OC1 pulse
+                    RPOR2bits.RP5R = 20;                                        // Pin14 used for OC1 pulse
                     RPOR1bits.RP3R = 18;                                        // Pin7 used for OC1 ground
                     RPOR5bits.RP10R = 20;                                       // Pin21 used for OC2 pulse
                     RPOR5bits.RP11R = 19;                                       // Pin22 used for OC2 ground
