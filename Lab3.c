@@ -99,7 +99,7 @@ int main(void){
     int rightMotorSpeed = 0;
     int leftMotorSpeed = 0;
     int error = 0;
-    int base = 0;
+    //int base = 0;
     int lastError;
 
 
@@ -119,18 +119,31 @@ int main(void){
     IFS0bits.T3IF = 0;                                                          // Put down interupt flag
     IEC0bits.T3IE = 0;                                                          // Do not enable ISR
 
+    RPOR2bits.RP5R = 18;                                        // Pin14 used for OC1 pulses
+    RPOR1bits.RP3R = 20;                                        // Pin7 used for OC1 ground
+    RPOR5bits.RP10R = 19;                                       // Pin21 used for OC2 pulse
+    RPOR5bits.RP11R = 20;                                       // Pin22 used for OC2 ground
+
     LCDInitialize( );                                                           // Initialize LCD
 
     //////////RECONFIGURE THIS///////////////////
     AD1PCFG &= 0xFFE0;                                                          // AN0-AN4 input pin is analog(0), rest all to digital pins(1)
     //AD1CON2 = 0x003C;                                                           // Sets SMPI(sample sequences per interrupt) to 1111, 16th sample/convert sequence
 
-    AD1CON2 = 0x0015;                                                           //set for 5 buffers
-    AD1CON3 = 0x0D01;                                                           // Set SAMC<12:8>(Auto-Sampe Time Bits(TAD)) =  13, ADCS<7:0> = 1 -> 100ns conversion time
-    AD1CON1 = 0x20E4;                                                           // ADSIDL<13> = 1, SSRC<7-5> = 111(conversion trigger source select - auto convert)
-   // AD1CHS = 0;                                                                 // Configure input channels, connect AN0 as positive input
-    AD1CSSL = 0;                                                                // No inputs are scanned
+    //AD1CON2 = 0x0015;                                                           //set for 5 buffers
+    //AD1CON3 = 0x0D01;                                                           // Set SAMC<12:8>(Auto-Sampe Time Bits(TAD)) =  13, ADCS<7:0> = 1 -> 100ns conversion time
+    //AD1CON1 = 0x20E4;                                                           // ADSIDL<13> = 1, SSRC<7-5> = 111(conversion trigger source select - auto convert)
+    AD1CHS = 0;                                                                 // Configure input channels, connect AN0 as positive input
+   // AD1CSSL = 0x001F;
+
+    AD1CON1 = 0x80E0;
+    AD1CON2 = 0x0414;
+    AD1CON3 = 0x0D01;
+    AD1CSSL = 0x001F;
     AD1CON1bits.ADON = 1;                                                       // Turn ADC on
+
+    IFS0bits.AD1IF = 0;
+    // IEC0bits.AD1IE = 1;
 
     TRISAbits.TRISA3 = 0;                                                       // RA3 = pin 10 as output
     PORTAbits.RA3 = 0;                                                          // Turn H-Bridge on
@@ -278,15 +291,17 @@ int main(void){
         if (mode == 1){                                                         // Autonomous Mode Operation
  
 // ******************************* SAMPLING ********************************* //
+            AD1CON1bits.ASAM = 1;
 
-            while(!IFS0bits.AD1IF);
-             adcPtr = (unsigned int *)(&ADC1BUF0);
+             while(!IFS0bits.AD1IF);
              IFS0bits.AD1IF = 0;
+             adcPtr = (unsigned int *)(&ADC1BUF0);
              sum = 0;
              for (i = 0; i < 4; i++ ) {
                  AD1CHS = inc + 1;
                  adcBuff[i] = *adcPtr++;
              }
+             AD1CON1bits.SAMP = 0;
 
              sum = adcBuff[2] + adcBuff[3] - adcBuff[1];
              inc = -1;
@@ -414,12 +429,12 @@ int main(void){
 /////////////////////////////////END NEW CODE///////////////////////////////////
         }   
     }
-        return;
+        return 0;
 }
 
 void _ISR_ADC1Interrupt(void) {                                                 // ISR for Analog to Digital conversion
 
-    AD1CON1bits.ASAM = 0;                                                       //
+  //  AD1CON1bits.ASAM = 0;                                                       //
     IFS0bits.AD1IF = 0;                                                         // Put down ISR flag
 
 }
