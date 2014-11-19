@@ -101,6 +101,7 @@ int main(void){
     int error = 0;
     //int base = 0;
     int lastError;
+    int leftpos;
 
 
     OC1CON = 0x000E;                                                            // Set OC1CON to PWM w/o protection
@@ -128,21 +129,27 @@ int main(void){
 
     //////////RECONFIGURE THIS///////////////////
     AD1PCFG &= 0xFFE0;                                                          // AN0-AN4 input pin is analog(0), rest all to digital pins(1)
+    AD1CON1 = 0x0000;
+    AD1CHS = 0x0000;
+    AD1CSSL = 0;
+    AD1CON3 = 0x0001;
+    AD1CON2 = 0;
+
     //AD1CON2 = 0x003C;                                                           // Sets SMPI(sample sequences per interrupt) to 1111, 16th sample/convert sequence
 
     //AD1CON2 = 0x0015;                                                           //set for 5 buffers
     //AD1CON3 = 0x0D01;                                                           // Set SAMC<12:8>(Auto-Sampe Time Bits(TAD)) =  13, ADCS<7:0> = 1 -> 100ns conversion time
     //AD1CON1 = 0x20E4;                                                           // ADSIDL<13> = 1, SSRC<7-5> = 111(conversion trigger source select - auto convert)
-    AD1CHS = 0;                                                                 // Configure input channels, connect AN0 as positive input
+   // AD1CHS = 0;                                                                 // Configure input channels, connect AN0 as positive input
    // AD1CSSL = 0x001F;
 
-    AD1CON1 = 0x80E0;
-    AD1CON2 = 0x0414;
-    AD1CON3 = 0x0D01;
-    AD1CSSL = 0x001F;
+  //  AD1CON1 = 0x80E0;
+    //AD1CON2 = 0x0414;
+   // AD1CON3 = 0x0D01;
+    //AD1CSSL = 0x001F;
     AD1CON1bits.ADON = 1;                                                       // Turn ADC on
 
-    IFS0bits.AD1IF = 0;
+   // IFS0bits.AD1IF = 0;
     // IEC0bits.AD1IE = 1;
 
     TRISAbits.TRISA3 = 0;                                                       // RA3 = pin 10 as output
@@ -291,23 +298,30 @@ int main(void){
         if (mode == 1){                                                         // Autonomous Mode Operation
  
 // ******************************* SAMPLING ********************************* //
-            AD1CON1bits.ASAM = 1;
+//            AD1CON1bits.ASAM = 1;
+//
+//             while(!IFS0bits.AD1IF);
+//             IFS0bits.AD1IF = 0;
+//             adcPtr = (unsigned int *)(&ADC1BUF0);
+//             sum = 0;
+//             for (i = 0; i < 4; i++ ) {
+//                 AD1CHS = inc + 1;
+//                 adcBuff[i] = *adcPtr++;
+//             }
+//             AD1CON1bits.SAMP = 0;
+//
+//             sum = adcBuff[2] + adcBuff[3] - adcBuff[1];
+//             inc = -1;
+//             // implement adcBuff[4]  for barcode
+////
 
-             while(!IFS0bits.AD1IF);
-             IFS0bits.AD1IF = 0;
-             adcPtr = (unsigned int *)(&ADC1BUF0);
-             sum = 0;
-             for (i = 0; i < 4; i++ ) {
-                 AD1CHS = inc + 1;
-                 adcBuff[i] = *adcPtr++;
-             }
-             AD1CON1bits.SAMP = 0;
+            AD1CON1bits.SAMP = 1;  //start sampling
+            DelayUs(100); // delay 100us for sampling. might need to adjust this
+            AD1CON1bits.SAMP = 0;  //stop sampling and auto convert
+            while(!AD1CON1bits.DONE);//wait for conversion complete
+            leftpos = ADC1BUF0;
 
-             sum = adcBuff[2] + adcBuff[3] - adcBuff[1];
-             inc = -1;
-             // implement adcBuff[4]  for barcode
-
-
+            //change AD1CHS to another pin and re poll
 
 // ***************************** SAMPLING END ******************************* //
 
